@@ -27,6 +27,14 @@ _MEMSTORE_ID_RE = re.compile(r"\bmemstore_[A-Za-z0-9]{20,}\b")
 # the policy). These are explicitly excluded from the scan.
 _ALLOWLIST: tuple[str, ...] = (
     "tests/test_no_memstore_id_hardcoded.py",
+    # ``tests/test_memstore_reference_behavior.py`` constructs
+    # synthetic memstore-shaped IDs (``memstore_TestDevId01234567890``,
+    # ``memstore_TestAgentId01234567890``, etc.) to exercise the
+    # renderer's raw-IDs mode. They are obviously-synthetic test
+    # fixtures, not real consumer IDs, and never leak into rendered
+    # output — but the regex shape matches, so the file is allowlisted
+    # here. The lock-down sentinel below pins the allowlist.
+    "tests/test_memstore_reference_behavior.py",
 )
 
 
@@ -74,10 +82,12 @@ def test_no_memstore_id_in_any_tracked_file() -> None:
 
 
 def test_allowlist_self_documents_the_regex() -> None:
-    """This test file is allowlisted because it documents the regex
-    shape. The allowlist must not silently grow."""
+    """The allowlist must not silently grow. Every entry must
+    document why a literal memstore-ID-shape string appears in that
+    file (this test's own body documents both)."""
     assert _ALLOWLIST == (
         "tests/test_no_memstore_id_hardcoded.py",
+        "tests/test_memstore_reference_behavior.py",
     ), (
         "memstore-ID allowlist drifted; every additional entry must "
         "document why a literal memstore-ID-shape string appears in "

@@ -121,3 +121,78 @@ def test_example_yaml_uses_placeholder_project_name() -> None:
         "your-project",
         "PLACEHOLDER",
     }, f"example project_name {value!r} looks too specific"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Cloud-memstore behavior matrix
+# (added when memstore_reference pointer-only mode was introduced).
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_schema_declares_memstore_reference_property() -> None:
+    """The pointer-only alternative to raw IDs must be a first-class
+    property on memory_policy."""
+    data = _load_schema()
+    mem = data["properties"]["memory_policy"]
+    assert "memstore_reference" in mem["properties"], (
+        "memory_policy.memstore_reference must exist as a property "
+        "(pointer-only alternative to inlined dev/agent IDs)"
+    )
+    ref = mem["properties"]["memstore_reference"]
+    assert ref.get("type") == "string"
+
+
+def test_schema_enabled_branch_uses_anyof_for_id_or_reference() -> None:
+    """When api_memstores_enabled is true, the schema's conditional
+    branch must accept EITHER (raw IDs both non-empty) OR
+    (memstore_reference non-empty)."""
+    data = _load_schema()
+    mem = data["properties"]["memory_policy"]
+    all_of = mem.get("allOf", [])
+    assert all_of, "memory_policy must keep the conditional allOf rule"
+    found_any_of = False
+    for rule in all_of:
+        then = rule.get("then", {})
+        if "anyOf" in then:
+            options = then["anyOf"]
+            id_option = any(
+                set(opt.get("required", []))
+                >= {"dev_memstore_id", "agent_memstore_id"}
+                for opt in options
+            )
+            ref_option = any(
+                "memstore_reference" in opt.get("required", [])
+                for opt in options
+            )
+            assert id_option, (
+                "anyOf must allow raw IDs path "
+                "(dev_memstore_id + agent_memstore_id)"
+            )
+            assert ref_option, (
+                "anyOf must allow memstore_reference pointer path"
+            )
+            found_any_of = True
+    assert found_any_of, (
+        "memory_policy.allOf must use anyOf to allow either raw IDs "
+        "or memstore_reference when api_memstores_enabled is true"
+    )
+
+
+def test_example_yaml_documents_memstore_reference_option() -> None:
+    """The example must mention memstore_reference so a consumer
+    discovers Pattern B without reading the schema."""
+    text = _example_text()
+    assert "memstore_reference" in text, (
+        "PROJECT_PROFILE.example.yaml must document the "
+        "memstore_reference pattern as an alternative to inlined IDs"
+    )
+
+
+def test_example_yaml_still_keeps_memstores_disabled_by_default() -> None:
+    """Adding pointer-only mode does NOT change the default posture:
+    api_memstores_enabled stays false in the example."""
+    text = _example_text()
+    assert re.search(r"api_memstores_enabled:\s*false", text), (
+        "the new memstore_reference feature must not change the "
+        "default posture (api_memstores_enabled: false)"
+    )
