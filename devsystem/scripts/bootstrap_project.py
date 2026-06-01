@@ -719,6 +719,23 @@ def _plan_github_surface(
                 False,
             )
         )
+
+    # D1 fix — also render a top-level ``.gitleaks.toml`` so the
+    # secret-scan workflow's ``--config .gitleaks.toml`` flag
+    # resolves on the consumer's first CI run. Without this the
+    # workflow exits 1 with "no such file or directory" even though
+    # the gitleaks scan would have been clean.
+    gitleaks_template = _DEVSYSTEM_ROOT / "devsystem" / "gitleaks.toml.template"
+    if gitleaks_template.is_file():
+        plan.append(
+            (
+                target_dir / ".gitleaks.toml",
+                render_template(
+                    gitleaks_template.read_text(encoding="utf-8"), profile,
+                ),
+                False,
+            )
+        )
     return plan
 
 
