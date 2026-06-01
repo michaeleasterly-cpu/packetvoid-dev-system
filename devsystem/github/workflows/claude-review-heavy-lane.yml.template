@@ -8,9 +8,12 @@ name: Claude Review — Heavy Lane
 # memory writes.
 #
 # Adoption: the action requires ANTHROPIC_API_KEY in repo secrets.
-# Without the secret, the workflow runs but the action step errors
-# out and the rest of the heavy-lane discipline (manual review)
-# takes over. See docs/DEV_PIPELINE_STANDARD.md §1 step 7.
+# The workflow auto-detects whether the secret is configured and
+# **gracefully no-ops when it is missing** — the manual heavy-lane
+# review discipline (docs/DEV_PIPELINE_STANDARD.md §1 step 7) is
+# always the dispositive gate. This means the first PR on a new
+# consumer repo isn't poisoned by a missing-secret error before
+# the operator has had a chance to set the secret.
 
 on:
   pull_request:
@@ -48,13 +51,32 @@ jobs:
       id-token: write
 
     steps:
+      - name: Gate on ANTHROPIC_API_KEY presence
+        id: gate
+        # GitHub Actions does not allow referencing ``secrets`` in
+        # job-level ``if:`` conditionals. We expose the boolean via
+        # an env var on the step and check it in a guard step;
+        # downstream steps gate on the guard's output. This is the
+        # standard portable pattern.
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::notice::ANTHROPIC_API_KEY secret is not configured on this repository; skipping the Claude review action. The heavy-lane manual fresh-context review discipline in docs/DEV_PIPELINE_STANDARD.md §1 step 7 remains the dispositive gate. Set the secret under Settings → Secrets and variables → Actions to enable automated first-pass review."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository (PR head, shallow)
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Claude Code Action review (review-only / no commits)
+        if: steps.gate.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

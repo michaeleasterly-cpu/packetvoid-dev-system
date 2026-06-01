@@ -1,0 +1,13 @@
+# Portable .gitleaks.toml shipped to consumer repos by
+# packetvoid-dev-system. Renders into the consumer's repo root.
+#
+# Posture: default gitleaks v8 rules in full ("useDefault = true").
+# No allowlist — consumers add their own as needed (e.g. for sentinel
+# test files whose tuples document forbidden patterns). The dev-
+# system's own .gitleaks.toml is a fuller example; this minimal
+# starter is what every new consumer gets.
+
+title = "{{ project_name }} gitleaks config"
+
+[extend]
+useDefault = true
