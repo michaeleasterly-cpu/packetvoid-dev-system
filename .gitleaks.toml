@@ -1,0 +1,43 @@
+# D0g — gitleaks configuration for packetvoid-dev-system.
+#
+# Default gitleaks v8 rules are kept in full ("extend.useDefault = true").
+# The only allowlist below covers the sentinel-pattern tuples that
+# this repo's tests rely on to scan for forbidden strings. Those
+# tuples are not real credentials; they exist so the test fails when
+# a forbidden pattern is introduced. Without this allowlist gitleaks
+# would mis-classify them as "literals to leak".
+#
+# What is NOT allowlisted (i.e. fully enforced everywhere):
+#   * real API keys / tokens of any vendor (Anthropic, GitHub, AWS,
+#     Slack, Stripe, Supabase, Railway, etc.)
+#   * private keys (RSA / EC / OpenSSH / PGP)
+#   * database connection strings with embedded credentials
+#   * generic high-entropy strings of likely-secret shape
+#
+# Rationale: this is the same posture the consumer-facing template
+# `devsystem/github/workflows/secret-scan.yml` enforces — we hold the
+# dev-system repo to the same standard.
+
+title = "packetvoid-dev-system gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Sentinel-pattern tuples in test files: STE donor identifiers that
+tests scan for to prove they never leak into rendered consumer
+output. Same pattern STE itself uses for its own sentinel guards.
+"""
+paths = [
+    '''tests/test_no_anthropic_api_surface\.py''',
+    '''tests/test_no_memstore_id_hardcoded\.py''',
+    '''tests/test_portable_docs_templates\.py''',
+    '''tests/test_portable_scripts_contract\.py''',
+    '''tests/test_claude_surface_templates\.py''',
+    '''tests/test_bootstrap_dummy_repo\.py''',
+    '''tests/test_profile_seeds\.py''',
+    '''tests/test_workflow_templates\.py''',
+    '''tests/test_repo_hardening_present\.py''',
+    '''devsystem/scripts/check_manifests\.py''',
+]

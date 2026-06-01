@@ -14,7 +14,7 @@ What it is **not**:
 - It does not assume Docker.
 - It does not run deploys. Railway is a supported deployment **profile**, but the tool itself never invokes `railway up`.
 
-## Status: D0e — workflows + PR template + profile seeds
+## Status: D0g — repo hardening (dogfood secret-scan)
 
 | Stage | Scope | Status |
 |---|---|---|
@@ -22,10 +22,12 @@ What it is **not**:
 | D0b | Portable docs as templates under `devsystem/docs/` | merged (PR #2) |
 | D0c | Portable scripts + bootstrap renderer + sentinel tests | merged (PR #3) |
 | D0d | Portable Claude surface: `path_registry.yaml.template`, `heavy-lane`/`security-guidance` rule templates, `security-review` skill (verbatim), portable hooks + agent templates; `check_manifests.py --target-dir` validates a consumer's rendered `.claude/` surface. | merged (PR #4) |
-| **D0e** | GitHub workflow templates (`claude-review-heavy-lane.yml.template` review-only, `secret-scan.yml` verbatim, `ci.yml.template` generic Python), `pull_request_template.md.template`, portable `.claude/settings.json.template`, and four profile seeds (`generic-python`, `python-railway`, `python-postgres`, `fintech-research`). Bootstrap gains `--profile <name>`; audit + check_manifests cover the new GitHub surface. | **this PR** |
-| D0f | Donor repo adopts the dev system (round-trip validation) | deferred until 2nd consumer |
+| D0e | GitHub workflow templates (`claude-review-heavy-lane.yml.template` review-only, `secret-scan.yml` verbatim, `ci.yml.template` generic Python), `pull_request_template.md.template`, portable `.claude/settings.json.template`, and four profile seeds (`generic-python`, `python-railway`, `python-postgres`, `fintech-research`). Bootstrap gains `--profile <name>`; audit + check_manifests cover the new GitHub surface. | merged (PR #5) |
+| D0f | Validation: all four profile seeds bootstrap into disposable consumer repos; audit/check_manifests/drift-detection all green. | passed (in-session report) |
+| **D0g** | Repo hardening: dogfood the portable `secret-scan.yml` workflow in this repo itself; add `.gitleaks.toml` (defaults + sentinel-pattern allowlist); add `docs/REPO_HARDENING.md` with recommended branch-protection settings; sentinel test pins the dogfooded workflow to byte-alignment with the portable consumer copy. Branch protection is documented but **not yet enabled** — operator-only action. | **this PR** |
+| D1 | First real consumer repo adopts the dev system | deferred |
 
-After D0e, a consumer can bootstrap a complete repo skeleton from a single named profile — docs, `.claude/` surface + settings, GitHub workflows + PR template — and re-run audit/check_manifests at any time to detect drift.
+The dev system now holds itself to the same secret-handling and least-permission discipline it teaches consumers. See `docs/REPO_HARDENING.md` for the current gates, the gitleaks posture, and the recommended branch-protection ruleset for `main`.
 
 ## How a future project uses it
 
