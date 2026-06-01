@@ -56,4 +56,16 @@ jobs:
         run: python -m ruff check .
 
       - name: pytest
-        run: {{ test_command }}
+        # ``pytest`` exits code 5 when no tests are collected — the
+        # expected state in a freshly-bootstrapped consumer repo
+        # before any test files have been added. Treat 5 as success;
+        # every other non-zero exit still fails the workflow.
+        run: |
+          set +e
+          {{ test_command }}
+          rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::pytest exit code 5 (no tests collected) — first-bootstrap state, treating as success"
+            exit 0
+          fi
+          exit "$rc"
