@@ -98,17 +98,22 @@
         },
         "api_memstores_enabled": {
           "type": "boolean",
-          "description": "When false (default), the rendered MEMSTORE_HANDOFF.md cloud-memstore section is a stub. When true, dev_memstore_id and agent_memstore_id must be set by the consumer — never shipped by the dev system."
+          "description": "When false (default), the rendered MEMSTORE_HANDOFF.md cloud-memstore section is a stub. When true, the consumer must declare the memstores either by inlining IDs (dev_memstore_id + agent_memstore_id) OR by pointing at a canonical doc that already contains them (memstore_reference). Pointer-only mode is the safer posture for consumers who do not want IDs duplicated into PROJECT_PROFILE.yaml."
         },
         "dev_memstore_id": {
           "type": "string",
           "default": "",
-          "description": "Consumer-supplied Anthropic memstore ID for dev / cross-session memory. Empty string when api_memstores_enabled is false."
+          "description": "Consumer-supplied Anthropic memstore ID for dev / cross-session memory. Empty string when api_memstores_enabled is false OR when memstore_reference is used instead."
         },
         "agent_memstore_id": {
           "type": "string",
           "default": "",
-          "description": "Consumer-supplied Anthropic memstore ID for autonomous-agent learning. Empty string when api_memstores_enabled is false."
+          "description": "Consumer-supplied Anthropic memstore ID for autonomous-agent learning. Empty string when api_memstores_enabled is false OR when memstore_reference is used instead."
+        },
+        "memstore_reference": {
+          "type": "string",
+          "default": "",
+          "description": "Pointer-only alternative to inlined dev_memstore_id + agent_memstore_id. When api_memstores_enabled is true and the consumer prefers not to duplicate the IDs into PROJECT_PROFILE.yaml, set this to a repo-relative path of the doc that already documents them canonically (e.g. ``docs/MEMSTORE_HANDOFF.md``). The dev-system renderer never reads the pointed-at file at render time — this is a documentation reference, not an indirection that fetches IDs."
         }
       },
       "allOf": [
@@ -118,11 +123,21 @@
             "required": ["api_memstores_enabled"]
           },
           "then": {
-            "required": ["dev_memstore_id", "agent_memstore_id"],
-            "properties": {
-              "dev_memstore_id": {"minLength": 1},
-              "agent_memstore_id": {"minLength": 1}
-            }
+            "anyOf": [
+              {
+                "required": ["dev_memstore_id", "agent_memstore_id"],
+                "properties": {
+                  "dev_memstore_id": {"minLength": 1},
+                  "agent_memstore_id": {"minLength": 1}
+                }
+              },
+              {
+                "required": ["memstore_reference"],
+                "properties": {
+                  "memstore_reference": {"minLength": 1}
+                }
+              }
+            ]
           }
         }
       ]

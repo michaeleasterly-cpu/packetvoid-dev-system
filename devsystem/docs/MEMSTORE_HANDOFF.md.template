@@ -86,6 +86,20 @@ To enable cloud memstores later:
 The dev-system bootstrap does **not** call the Anthropic API and does **not** write to any memstore. Bootstrap is a pure file-rendering operation.
 <!-- END_API_MEMSTORES_DISABLED -->
 
+<!-- BEGIN_API_MEMSTORES_ENABLED_REFERENCE -->
+**Cloud memstores are enabled by posture for this project, with the IDs documented canonically in `{{ memstore_reference }}` rather than inlined here** (`memory_policy.api_memstores_enabled: true`, `memory_policy.memstore_reference: {{ memstore_reference }}`).
+
+This is the pointer-only mode for consumer projects that prefer not to duplicate memstore IDs into `PROJECT_PROFILE.yaml`. Open `{{ memstore_reference }}` to find the actual `dev_memstore_id` and `agent_memstore_id` and the read/write protocol. The dev-system bootstrap that rendered this file:
+
+- did **not** read the pointed-at file at render time;
+- did **not** call the Anthropic API;
+- did **not** write to any memstore.
+
+Tier 3 is *active* for this project but its surface is documented elsewhere. To switch from pointer-only mode to inlined IDs, set both `memory_policy.dev_memstore_id` and `memory_policy.agent_memstore_id` in `PROJECT_PROFILE.yaml` and re-run `bootstrap_project.py`.
+
+The forbidden-content list in §4 applies in full to whichever doc holds the IDs.
+<!-- END_API_MEMSTORES_ENABLED_REFERENCE -->
+
 <!-- BEGIN_API_MEMSTORES_ENABLED -->
 This project runs two Anthropic-hosted memstores (or one — `agent_memstore_id` can equal `dev_memstore_id`). Substantive content lives there; this section only points at them and documents the read/write protocol.
 

@@ -76,13 +76,24 @@ memory_policy:
   local_memory_limit_bytes: 24400            # C0.1 ceiling
   memory_boundary_doc: true                  # render docs/MEMSTORE_HANDOFF.md
   api_memstores_enabled: false               # CLOUD memstores OFF by default
-  # When api_memstores_enabled: true, fill these with YOUR project's
-  # memstore IDs. Leave empty or unset when api_memstores_enabled is
-  # false — bootstrap renders the cloud-memory doc section as a stub
-  # explaining the boundary instead of an active endpoint list.
-  # NEVER paste another project's IDs here.
-  dev_memstore_id: ""                        # consumer-supplied; shape is `memstore_` + alphanumeric suffix
-  agent_memstore_id: ""                      # consumer-supplied; same shape
+  # When api_memstores_enabled: true, the consumer chooses ONE of the
+  # two patterns below. Bootstrap fails closed when neither is set.
+  #
+  # Pattern A — inline the IDs here (legacy / explicit):
+  #   * Fill dev_memstore_id and agent_memstore_id with YOUR project's
+  #     IDs (shape is ``memstore_`` + alphanumeric suffix).
+  #   * NEVER paste another project's IDs here.
+  #
+  # Pattern B (recommended, safer) — point at the canonical doc that
+  # already holds the IDs:
+  #   * Leave dev_memstore_id + agent_memstore_id empty.
+  #   * Set memstore_reference to a repo-relative path of the doc
+  #     that documents them, e.g. ``docs/MEMSTORE_HANDOFF.md``.
+  #   * The dev system never reads the pointed-at file at render
+  #     time; this is documentation indirection, not ID lookup.
+  dev_memstore_id: ""                        # consumer-supplied (Pattern A); empty for Pattern B
+  agent_memstore_id: ""                      # consumer-supplied (Pattern A); empty for Pattern B
+  # memstore_reference: "docs/MEMSTORE_HANDOFF.md"  # Pattern B pointer
 
 # Review automation mode. The donor repo's C0.4 cascade prohibits any
 # value other than ``claude-review-only`` — auto-fix and auto-merge are

@@ -262,25 +262,77 @@ def _parse_object(block_lines: list[str]) -> dict:
 # Conditional-block resolver + placeholder substitution
 # ─────────────────────────────────────────────────────────────────────
 
-_CONDITIONAL_LABELS = ("API_MEMSTORES_DISABLED", "API_MEMSTORES_ENABLED")
+_CONDITIONAL_LABELS = (
+    "API_MEMSTORES_DISABLED",
+    "API_MEMSTORES_ENABLED",
+    "API_MEMSTORES_ENABLED_REFERENCE",
+)
+
+
+def memstore_mode(profile: dict) -> str:
+    """Return one of:
+
+      * ``"disabled"``           — api_memstores_enabled false (default)
+      * ``"enabled_raw"``        — enabled + non-empty dev/agent IDs
+      * ``"enabled_reference"``  — enabled + non-empty memstore_reference,
+                                   no inlined IDs
+
+    The dev-system never reads the reference target at render time;
+    it only renders a pointer block saying "the IDs live at
+    ``{{ memstore_reference }}``". This lets consumer projects keep
+    raw memstore IDs in a single canonical doc and reference them by
+    path from PROJECT_PROFILE.yaml — avoids duplication and matches
+    the safer posture STE adopted in its S1 round-trip work."""
+    mem = profile.get("memory_policy", {}) or {}
+    if not bool(mem.get("api_memstores_enabled", False)):
+        return "disabled"
+    dev_id = str(mem.get("dev_memstore_id", "") or "").strip()
+    agent_id = str(mem.get("agent_memstore_id", "") or "").strip()
+    if dev_id and agent_id:
+        return "enabled_raw"
+    reference = str(mem.get("memstore_reference", "") or "").strip()
+    if reference:
+        return "enabled_reference"
+    # Caller raises with a precise message.
+    return "invalid"
 
 
 def resolve_conditional_blocks(
-    text: str, api_memstores_enabled: bool,
+    text: str, mode: str,
 ) -> str:
     """Keep one of the ``<!-- BEGIN_<LABEL> -->``/``<!-- END_<LABEL> -->``
-    blocks and strip the other entirely (markers and body)."""
-    if api_memstores_enabled:
-        keep, drop = "API_MEMSTORES_ENABLED", "API_MEMSTORES_DISABLED"
-    else:
-        keep, drop = "API_MEMSTORES_DISABLED", "API_MEMSTORES_ENABLED"
-    # Drop the opposite block entirely.
-    text = re.sub(
-        rf"<!-- BEGIN_{drop} -->\s*\n.*?<!-- END_{drop} -->\s*\n?",
-        "",
-        text,
-        flags=re.DOTALL,
-    )
+    blocks and strip the others entirely (markers and body).
+
+    ``mode`` is ``"disabled"``, ``"enabled_raw"``, or
+    ``"enabled_reference"`` — see ``memstore_mode``.
+
+    Backwards-compatibility: callers that previously passed a bool
+    are still supported (``True`` → ``"enabled_raw"`` for the
+    existing inlined-IDs flow; ``False`` → ``"disabled"``)."""
+    if mode is True:                       # noqa: E712
+        mode = "enabled_raw"
+    elif mode is False:                    # noqa: E712
+        mode = "disabled"
+    mode_to_label = {
+        "disabled": "API_MEMSTORES_DISABLED",
+        "enabled_raw": "API_MEMSTORES_ENABLED",
+        "enabled_reference": "API_MEMSTORES_ENABLED_REFERENCE",
+    }
+    if mode not in mode_to_label:
+        raise ValueError(
+            f"resolve_conditional_blocks: unknown memstore mode "
+            f"{mode!r}; must be one of {sorted(mode_to_label)}"
+        )
+    keep = mode_to_label[mode]
+    drops = [v for k, v in mode_to_label.items() if k != mode]
+    # Drop every other block entirely.
+    for drop in drops:
+        text = re.sub(
+            rf"<!-- BEGIN_{drop} -->\s*\n.*?<!-- END_{drop} -->\s*\n?",
+            "",
+            text,
+            flags=re.DOTALL,
+        )
     # Strip just the markers of the kept block.
     text = re.sub(rf"<!-- BEGIN_{keep} -->\s*\n?", "", text)
     text = re.sub(rf"<!-- END_{keep} -->\s*\n?", "", text)
@@ -466,6 +518,7 @@ def _flat_substitutions(profile: dict) -> dict[str, str]:
         # api_memstores_enabled is true).
         "dev_memstore_id": str(mem.get("dev_memstore_id", "") or ""),
         "agent_memstore_id": str(mem.get("agent_memstore_id", "") or ""),
+        "memstore_reference": str(mem.get("memstore_reference", "") or ""),
         "anthropic_beta_header": str(
             mem.get("anthropic_beta_header", "managed-agents-2026-04-01")
         ),
@@ -485,21 +538,21 @@ _UNRESOLVED_PATTERN = re.compile(r"\{\{\s*[A-Za-z0-9_]+\s*\}\}")
 
 def render_template(template_text: str, profile: dict) -> str:
     """Render one template against ``profile``. Raises on unresolved
-    placeholders or on missing memstore IDs when the enabled block
-    was selected."""
-    mem = profile.get("memory_policy", {}) or {}
-    enabled = bool(mem.get("api_memstores_enabled", False))
-    if enabled:
-        for required in ("dev_memstore_id", "agent_memstore_id"):
-            value = mem.get(required) or ""
-            if not str(value).strip():
-                raise ValueError(
-                    f"PROJECT_PROFILE.memory_policy.api_memstores_enabled "
-                    f"is true but {required!r} is missing or empty; "
-                    "supply your own memstore IDs or set "
-                    "api_memstores_enabled: false"
-                )
-    text = resolve_conditional_blocks(template_text, enabled)
+    placeholders or when api_memstores_enabled is true but the
+    consumer supplied neither inlined IDs nor a memstore_reference
+    pointer."""
+    mode = memstore_mode(profile)
+    if mode == "invalid":
+        raise ValueError(
+            "PROJECT_PROFILE.memory_policy.api_memstores_enabled is "
+            "true but the consumer supplied neither "
+            "(dev_memstore_id + agent_memstore_id) nor "
+            "memstore_reference. Either inline the IDs, point at a "
+            "canonical doc via memstore_reference (e.g. "
+            "``docs/MEMSTORE_HANDOFF.md``), or set "
+            "api_memstores_enabled: false."
+        )
+    text = resolve_conditional_blocks(template_text, mode)
     flat = _flat_substitutions(profile)
     for var, val in flat.items():
         text = text.replace("{{ " + var + " }}", val)
