@@ -77,6 +77,26 @@ complete and so future edits don't regress them.
   `worktree.baseRef`/`bgIsolation`) and added `tests/test_plugin_manifest_present.py`
   for the `plugin.json` presence + required keys, plus a presence check for this
   doc.
+- **Security-guidance Layer-1 PostToolUse pattern-scan hook templates.** Added
+  the three portable hook templates under `devsystem/claude/hooks/`:
+  `security_pattern_scan.sh.template` (bash wrapper with a `.venv/bin/python` →
+  `python3` → `python` fallback chain), `security_pattern_scan.py.template`
+  (stdin-JSON entrypoint; advisory exit 0 always — PostToolUse cannot block
+  retroactively), and `security_patterns_vendored.py.template` (the ~25 GENERIC
+  Anthropic Layer-1 regex patterns: command injection, unsafe deserialization,
+  XSS sinks, weak crypto, disabled TLS verification, unsafe XML/YAML/pickle/torch
+  loads). **Only the generic Layer-1 patterns are portable** — the donor's
+  domain-specific patterns (no-yfinance, no-Discord, hardcoded-Postgres-URL,
+  inline `# noqa` bans, etc.) stay donor-only; the entrypoint loads any
+  project-specific rules from an *optional, absent-by-default*
+  `security_patterns_local.py`. The kill-switch env var is genericized to
+  `DEVSYS_SECURITY_PATTERN_SCAN_DISABLE`. Wired into `settings.json.template`
+  under `PostToolUse` with matcher `Edit|Write|MultiEdit|NotebookEdit`. The
+  bootstrap renderer (`bootstrap_project.py` `_plan_claude_surface`) now renders
+  `hooks/*.py` (verbatim) and `hooks/*.py.template` (rendered, NOT executable —
+  they are invoked by the `.sh` wrapper, not run directly). Sentinel:
+  `tests/test_security_hook_template_present.py`. This closes the §4 deferral
+  below (STE audit §1.12).
 
 The `defaultMode` choice is `"default"`, not `"plan"`. The STE audit (§3.2)
 notes `"plan"` would be the structural complement to a discovery-first posture
@@ -107,13 +127,6 @@ See STE audit §2.3–§2.7 for the per-item `STE_ORIGINAL` classifications.
 
 Genuinely portable, but deferred until there's a concrete reach for them:
 
-- **Security-guidance Layer-1 PostToolUse pattern-scan hook template.** STE
-  ships a `security_pattern_scan` advisory PostToolUse hook (~25 vendored
-  regexes + domain patterns). Trellis does NOT yet ship a security-pattern-scan
-  hook template, so `settings.json.template` `hooks` was left as-is (no
-  PostToolUse block invented). When Trellis adds a portable Layer-1 scan hook,
-  wire it under `PostToolUse(Edit|Write|MultiEdit|NotebookEdit)` then. STE audit
-  §1.12.
 - **`hookify` markdown-rule shape for future advisory hooks.** The donor's
   next-advisory-hook guidance (STE audit §3.3) is to author it as a hookify
   rule (YAML frontmatter `event:`/`action:`/`conditions:` + body) rather than
