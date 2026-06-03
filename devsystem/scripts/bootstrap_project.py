@@ -616,6 +616,10 @@ def _plan_claude_surface(
         the security-review skill is content-portable as-is)
       * ``devsystem/claude/hooks/*.sh`` → verbatim, executable
       * ``devsystem/claude/hooks/*.sh.template`` → rendered, executable
+      * ``devsystem/claude/hooks/*.py.template`` → rendered, NOT executable
+        (python hook helpers, e.g. security_pattern_scan; invoked by the
+        ``.sh`` wrapper, not run directly)
+      * ``devsystem/claude/hooks/*.py`` → verbatim, NOT executable
       * ``devsystem/claude/agents/*.md.template`` → rendered
     """
     plan: list[tuple[Path, str, bool]] = []
@@ -696,6 +700,37 @@ def _plan_claude_surface(
                         template.read_text(encoding="utf-8"), profile,
                     ),
                     True,
+                )
+            )
+        # Python hook helpers (e.g. the Layer-1 security_pattern_scan
+        # entrypoint + its vendored pattern data). Verbatim ``*.py`` and
+        # rendered ``*.py.template`` — NOT marked executable; they are
+        # invoked by the ``.sh`` wrapper via the project's python, not run
+        # directly. ``*.py.template`` is matched first so the verbatim
+        # ``*.py`` glob below doesn't double-count rendered outputs (it
+        # never would — outputs land in the target dir, not here — but the
+        # ordering keeps the two passes disjoint by construction).
+        for template in sorted(hooks_dir.glob("*.py.template")):
+            rendered_name = template.name[: -len(".template")]
+            plan.append(
+                (
+                    claude_root / "hooks" / rendered_name,
+                    render_template(
+                        template.read_text(encoding="utf-8"), profile,
+                    ),
+                    False,
+                )
+            )
+        for hook_py in sorted(hooks_dir.glob("*.py")):
+            # Exclude the ``.py.template`` files already handled above
+            # (glob("*.py") does not match them, but be explicit).
+            if hook_py.name.endswith(".py.template"):
+                continue
+            plan.append(
+                (
+                    claude_root / "hooks" / hook_py.name,
+                    hook_py.read_text(encoding="utf-8"),
+                    False,
                 )
             )
 
